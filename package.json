@@ -1,0 +1,13 @@
+{
+  "name": "gmail-email-fetcher",
+  "version": "1.0.0",
+  "description": "AI-powered email classifier backend",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
+  },
+  "keywords": ["gmail", "ai", "email", "classifier"],
+  "author": "",
+  "license": "ISC"
+}
