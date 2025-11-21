@@ -1,11 +1,11 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const connectDB = require('./config/database');
-const startEmailSyncJob = require('./jobs/emailSyncJob');
-
-const authRoutes = require('./routes/authRoutes');
-const emailRoutes = require('./routes/emailRoutes');
+import 'dotenv/config';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import connectDB from './config/database';
+import startEmailSyncJob from './jobs/emailSyncJob';
+import authRoutes from './routes/authRoutes';
+import emailRoutes from './routes/emailRoutes';
+import { SuccessPageQuery, ErrorPageQuery } from './types/request.types';
 
 const app = express();
 
@@ -19,16 +19,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/emails', emailRoutes);
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
 // 🟢 AUTH SUCCESS PAGE
-app.get('/auth/success', (req, res) => {
-  const token = req.query.token;
+app.get('/auth/success', (req: Request, res: Response) => {
+  const { token } = req.query as SuccessPageQuery;
   
   if (!token) {
-    return res.redirect('/auth/error?message=No token found');
+    res.redirect('/auth/error?message=No token found');
+    return;
   }
 
   res.send(`
@@ -255,11 +256,9 @@ app.get('/auth/success', (req, res) => {
         const token = "${token}";
         const API_URL = 'http://localhost:5000/api';
         
-        // Save to localStorage
         localStorage.setItem('gmail_token', token);
         localStorage.setItem('gmail_token_saved_at', new Date().toISOString());
 
-        // Load user info
         async function loadUserInfo() {
           try {
             const response = await fetch(API_URL + '/auth/me', {
@@ -331,13 +330,11 @@ app.get('/auth/success', (req, res) => {
             const data = await response.json();
 
             if (response.ok) {
-              // Clear localStorage
               localStorage.removeItem('gmail_token');
               localStorage.removeItem('gmail_token_saved_at');
               
               showNotification('✅ Logged out successfully!');
               
-              // Redirect after 1 second
               setTimeout(() => {
                 window.location.href = '/auth/logged-out';
               }, 1000);
@@ -363,13 +360,11 @@ app.get('/auth/success', (req, res) => {
             const data = await response.json();
 
             if (response.ok) {
-              // Clear localStorage
               localStorage.removeItem('gmail_token');
               localStorage.removeItem('gmail_token_saved_at');
               
               showNotification('✅ Logged out from all devices!');
               
-              // Redirect after 1 second
               setTimeout(() => {
                 window.location.href = '/auth/logged-out';
               }, 1000);
@@ -381,7 +376,6 @@ app.get('/auth/success', (req, res) => {
           }
         }
 
-        // Load user info on page load
         window.onload = () => {
           loadUserInfo();
         };
@@ -392,8 +386,8 @@ app.get('/auth/success', (req, res) => {
 });
 
 // 🟢 AUTH ERROR PAGE
-app.get('/auth/error', (req, res) => {
-  const message = req.query.message || 'An error occurred during authentication';
+app.get('/auth/error', (req: Request, res: Response) => {
+  const { message = 'An error occurred during authentication' } = req.query as ErrorPageQuery;
   
   res.send(`
     <!DOCTYPE html>
@@ -507,7 +501,7 @@ app.get('/auth/error', (req, res) => {
 });
 
 // 🟢 LOGGED OUT PAGE
-app.get('/auth/logged-out', (req, res) => {
+app.get('/auth/logged-out', (req: Request, res: Response) => {
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -600,7 +594,6 @@ app.get('/auth/logged-out', (req, res) => {
       </div>
 
       <script>
-        // Ensure token is cleared from localStorage
         localStorage.removeItem('gmail_token');
         localStorage.removeItem('gmail_token_saved_at');
       </script>
@@ -617,6 +610,8 @@ startEmailSyncJob();
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+export default app;

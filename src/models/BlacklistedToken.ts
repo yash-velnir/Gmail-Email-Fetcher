@@ -1,6 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema, Model } from 'mongoose';
+import { IBlacklistedToken } from '../types';
 
-const blacklistedTokenSchema = new mongoose.Schema({
+const blacklistedTokenSchema = new Schema<IBlacklistedToken>({
   token: {
     type: String,
     required: true,
@@ -8,7 +9,7 @@ const blacklistedTokenSchema = new mongoose.Schema({
     index: true
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
@@ -29,4 +30,9 @@ const blacklistedTokenSchema = new mongoose.Schema({
 // Automatically delete expired blacklisted tokens
 blacklistedTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-module.exports = mongoose.model('BlacklistedToken', blacklistedTokenSchema);
+const BlacklistedToken: Model<IBlacklistedToken> = mongoose.model<IBlacklistedToken>(
+  'BlacklistedToken', 
+  blacklistedTokenSchema
+);
+
+export default BlacklistedToken;

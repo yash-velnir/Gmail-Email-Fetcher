@@ -1,15 +1,39 @@
-version: '3.9'
-
 services:
   backend:
     container_name: gmail-email-fetcher
-    build: .
-    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    restart: unless-stopped
     ports:
       - "5000:5000"
     env_file:
       - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+    networks:
+      - gmail-network
+
+  mongodb:
+    image: mongo:7
+    container_name: gmail-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
     volumes:
-      - .:/app
-      - /app/node_modules
-    command: npm start
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=gmail_fetcher
+    networks:
+      - gmail-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  gmail-network:
+    driver: bridge

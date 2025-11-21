@@ -1,6 +1,7 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema, Model } from 'mongoose';
+import { IUser } from '../types';
 
-const userSchema = new mongoose.Schema({
+const userSchema = new Schema<IUser>({
   googleId: {
     type: String,
     required: true,
@@ -15,7 +16,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  picture: String,
+  picture: {
+    type: String
+  },
   accessToken: {
     type: String,
     required: true
@@ -44,4 +47,6 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('User', userSchema);
+const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);
+
+export default User;

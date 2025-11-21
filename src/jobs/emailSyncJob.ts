@@ -1,7 +1,7 @@
-const cron = require('node-cron');
-const emailSyncService = require('../services/emailSyncService');
+import cron from 'node-cron';
+import emailSyncService from '../services/emailSyncService';
 
-const startEmailSyncJob = () => {
+const startEmailSyncJob = (): void => {
   cron.schedule('*/30 * * * *', async () => {
     console.log('\n⏰ Running scheduled email sync...');
     try {
@@ -14,4 +14,4 @@ const startEmailSyncJob = () => {
   console.log('✅ Email sync cron job started (runs every 30 minutes)');
 };
 
-module.exports = startEmailSyncJob;
+export default startEmailSyncJob;

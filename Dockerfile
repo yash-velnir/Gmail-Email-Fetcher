@@ -1,20 +1,45 @@
-# Use a lightweight Node image
-FROM node:18-alpine
+# ============================================
+# Stage 1: Build TypeScript
+# ============================================
+FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json first
+# Copy package files
 COPY package*.json ./
 
-# Install only production deps
-RUN npm install --production
+# Install ALL dependencies (including devDependencies for TypeScript)
+RUN npm ci
 
-# Copy the rest of the code
-COPY . .
+# Copy source code and config
+COPY tsconfig.json ./
+COPY src ./src
 
-# Expose your app port (change if not 3000)
-EXPOSE 3000
+# Build TypeScript to JavaScript
+RUN npm run build
+
+# ============================================
+# Stage 2: Production Runtime
+# ============================================
+FROM node:18-alpine AS production
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install ONLY production dependencies
+RUN npm ci --only=production
+
+# Copy compiled JavaScript from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:5000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
 CMD ["npm", "start"]

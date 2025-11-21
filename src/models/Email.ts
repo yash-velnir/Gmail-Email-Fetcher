@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema, Model } from 'mongoose';
+import { IEmail } from '../types';
 
-const emailSchema = new mongoose.Schema({
+const emailSchema = new Schema<IEmail>({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -12,7 +13,9 @@ const emailSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  threadId: String,
+  threadId: {
+    type: String
+  },
   from: {
     name: String,
     email: String
@@ -21,8 +24,12 @@ const emailSchema = new mongoose.Schema({
     name: String,
     email: String
   }],
-  subject: String,
-  snippet: String,
+  subject: {
+    type: String
+  },
+  snippet: {
+    type: String
+  },
   body: {
     text: String,
     html: String
@@ -32,15 +39,20 @@ const emailSchema = new mongoose.Schema({
     index: true
   },
   labels: [String],
-  isRead: Boolean,
-  isImportant: Boolean,
-  hasAttachments: Boolean,
+  isRead: {
+    type: Boolean
+  },
+  isImportant: {
+    type: Boolean
+  },
+  hasAttachments: {
+    type: Boolean
+  },
   attachments: [{
     filename: String,
     mimeType: String,
     size: Number
   }],
-  // For future AI classification
   aiClassification: {
     isImportant: Boolean,
     category: String,
@@ -50,8 +62,10 @@ const emailSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Compound index for efficient queries
+// Compound indexes for efficient queries
 emailSchema.index({ userId: 1, date: -1 });
 emailSchema.index({ userId: 1, messageId: 1 }, { unique: true });
 
-module.exports = mongoose.model('Email', emailSchema);
+const Email: Model<IEmail> = mongoose.model<IEmail>('Email', emailSchema);
+
+export default Email;

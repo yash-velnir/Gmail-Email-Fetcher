@@ -1,11 +1,13 @@
-const jwt = require('jsonwebtoken');
-const { google } = require('googleapis');
-const User = require('../models/User');
-const BlacklistedToken = require('../models/BlacklistedToken');
-const { oauth2Client, SCOPES } = require('../config/gmail');
-const emailSyncService = require('../services/emailSyncService');
+import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import { google } from 'googleapis';
+import User from '../models/User';
+import BlacklistedToken from '../models/BlacklistedToken';
+import { oauth2Client, SCOPES } from '../config/gmail';
+import emailSyncService from '../services/emailSyncService';
+import { AuthCallbackQuery, JWTDecoded } from '../types/request.types';
 
-exports.getGoogleAuthUrl = (req, res) => {
+export const getGoogleAuthUrl = (req: Request, res: Response): void => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -15,12 +17,13 @@ exports.getGoogleAuthUrl = (req, res) => {
   res.json({ authUrl });
 };
 
-exports.googleCallback = async (req, res) => {
-  const { code } = req.query;
+export const googleCallback = async (req: Request, res: Response): Promise<void> => {
+  const { code } = req.query as AuthCallbackQuery;
 
   // Check if code exists
   if (!code) {
-    return res.redirect(`/auth/error?message=${encodeURIComponent('No authorization code received')}`);
+    res.redirect(`/auth/error?message=${encodeURIComponent('No authorization code received')}`);
+    return;
   }
 
   try {
@@ -28,9 +31,19 @@ exports.googleCallback = async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
+    // Validate required tokens
+    if (!tokens.access_token || !tokens.refresh_token) {
+      throw new Error('Missing required tokens from Google');
+    }
+
     // Get user info
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data } = await oauth2.userinfo.get();
+
+    // Validate user data
+    if (!data.id || !data.email || !data.name) {
+      throw new Error('Incomplete user data from Google');
+    }
 
     // Find or create user
     let user = await User.findOne({ googleId: data.id });
@@ -60,14 +73,19 @@ exports.googleCallback = async (req, res) => {
       isNewUser = true;
     }
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+
     // Generate JWT token with version
     const jwtToken = jwt.sign(
       { 
-        userId: user._id, 
+        userId: user._id.toString(), 
         email: user.email,
         tokenVersion: user.tokenVersion
       },
-      process.env.JWT_SECRET,
+      jwtSecret,
       { expiresIn: '7d' }
     );
 
@@ -82,45 +100,60 @@ exports.googleCallback = async (req, res) => {
     res.redirect(`/auth/success?token=${jwtToken}`);
 
   } catch (error) {
-    console.error('❌ Auth Error:', error.message);
+    const err = error as Error;
+    console.error('❌ Auth Error:', err.message);
     
     // Handle specific errors
     let errorMessage = 'Authentication failed';
     
-    if (error.message?.includes('invalid_grant')) {
+    if (err.message?.includes('invalid_grant')) {
       errorMessage = 'Authorization code has already been used or expired';
-    } else if (error.message?.includes('redirect_uri_mismatch')) {
+    } else if (err.message?.includes('redirect_uri_mismatch')) {
       errorMessage = 'OAuth redirect URI mismatch';
-    } else if (error.message?.includes('invalid_client')) {
+    } else if (err.message?.includes('invalid_client')) {
       errorMessage = 'Invalid OAuth client credentials';
     } else {
-      errorMessage = error.message;
+      errorMessage = err.message;
     }
     
     res.redirect(`/auth/error?message=${encodeURIComponent(errorMessage)}`);
   }
 };
 
-exports.getCurrentUser = async (req, res) => {
+export const getCurrentUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.userId).select('-accessToken -refreshToken');
+    
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
     res.json({ user });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: errorMessage });
   }
 };
 
-exports.logout = async (req, res) => {
+export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const userId = req.userId;
 
     if (!token || !userId) {
-      return res.status(400).json({ error: 'No token or user found' });
+      res.status(400).json({ error: 'No token or user found' });
+      return;
     }
 
     // 1. Get token expiration from JWT
-    const decoded = jwt.decode(token);
+    const decoded = jwt.decode(token) as JWTDecoded;
+    
+    if (!decoded || !decoded.exp) {
+      res.status(400).json({ error: 'Invalid token format' });
+      return;
+    }
+
     const expiresAt = new Date(decoded.exp * 1000);
 
     // 2. Add token to blacklist
@@ -149,9 +182,14 @@ exports.logout = async (req, res) => {
   }
 };
 
-exports.logoutAll = async (req, res) => {
+export const logoutAll = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.userId;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
 
     // Increment token version to invalidate all existing tokens
     const user = await User.findByIdAndUpdate(
@@ -162,6 +200,11 @@ exports.logoutAll = async (req, res) => {
       },
       { new: true }
     );
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
 
     console.log(`✅ User ${req.userEmail} logged out from all devices (new version: ${user.tokenVersion})`);
 

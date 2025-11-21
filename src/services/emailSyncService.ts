@@ -1,10 +1,12 @@
-const User = require('../models/User');
-const Email = require('../models/Email');
-const GmailService = require('./gmailService');
-const { INITIAL_FETCH_DAYS, MAX_RESULTS_PER_FETCH } = require('../config/constants');
+import User from '../models/User';
+import Email from '../models/Email';
+import GmailService from './gmailService';
+import { INITIAL_FETCH_DAYS, MAX_RESULTS_PER_FETCH } from '../config/constants';
+import { ISyncResult } from '../types';
+import { Types } from 'mongoose';
 
 class EmailSyncService {
-  async syncUserEmails(userId) {
+  async syncUserEmails(userId: string | Types.ObjectId): Promise<ISyncResult> {
     try {
       const user = await User.findById(userId);
       if (!user) {
@@ -47,7 +49,7 @@ class EmailSyncService {
             continue;
           }
 
-          const emailData = await gmailService.getEmailDetails(message.id);
+          const emailData = await gmailService.getEmailDetails(message.id!);
 
           await Email.create({
             userId: user._id,
@@ -56,7 +58,8 @@ class EmailSyncService {
 
           synced++;
         } catch (error) {
-          console.error(`Error processing email ${message.id}:`, error.message);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`Error processing email ${message.id}:`, errorMessage);
         }
       }
 
@@ -73,7 +76,7 @@ class EmailSyncService {
     }
   }
 
-  async syncAllUsers() {
+  async syncAllUsers(): Promise<void> {
     try {
       const users = await User.find({});
       console.log(`\n🔄 Starting sync for ${users.length} users...`);
@@ -82,7 +85,8 @@ class EmailSyncService {
         try {
           await this.syncUserEmails(user._id);
         } catch (error) {
-          console.error(`Error syncing user ${user.email}:`, error.message);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`Error syncing user ${user.email}:`, errorMessage);
         }
       }
 
@@ -93,4 +97,4 @@ class EmailSyncService {
   }
 }
 
-module.exports = new EmailSyncService();
+export default new EmailSyncService();
